@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Massive Stock Watchlist</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #2d3748;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hint {
+      color: #718096;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+      padding: 12px 16px;
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      border-radius: 4px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      background: white;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    input[type="text"]::placeholder {
+      color: #cbd5e0;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      width: 100%;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    #result {
+      margin-top: 24px;
+      white-space: pre-wrap;
+      padding: 16px 20px;
+      border-radius: 8px;
+      min-height: 20px;
+      font-size: 14px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    #result:not(:empty) {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #166534;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    table {
+      width: 100%;
+      margin-top: 40px;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    th {
+      text-align: left;
+      padding: 16px;
+      font-size: 12px;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    td {
+      text-align: left;
+      padding: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      background: white;
+      transition: all 0.2s ease;
+    }
+
+    tbody tr:hover td {
+      background: #f7fafc;
+      cursor: default;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: #fafbfc;
+    }
+
+    tbody tr:nth-child(even):hover td {
+      background: #f7fafc;
+    }
+
+    #watchlist-table tbody:empty::after {
+      content: "No stocks in watchlist yet";
+      display: block;
+      text-align: center;
+      padding: 40px;
+      color: #a0aec0;
+      font-style: italic;
+    }
+
+    .delete-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      margin: 0;
+      width: auto;
+      box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+    }
+
+    .delete-btn:hover {
+      background: #dc2626;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
+    }
+
+    .delete-btn:active {
+      transform: translateY(0);
+    }
+
+    .news-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      margin: 0;
+      margin-right: 8px;
+      width: auto;
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+    }
+
+    .news-btn:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+    }
+
+    .news-btn:active {
+      transform: translateY(0);
+    }
+
+    td.actions {
+      text-align: center;
+      width: 180px;
+    }
+
+    .news-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .news-modal.show {
+      display: flex;
+    }
+
+    .news-content {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .news-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 16px;
+    }
+
+    .news-header h2 {
+      font-size: 24px;
+      margin: 0;
+      color: #1a202c;
+    }
+
+    .close-btn {
+      background: #e2e8f0;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+      font-weight: bold;
+      color: #4a5568;
+      transition: all 0.2s ease;
+    }
+
+    .close-btn:hover {
+      background: #cbd5e0;
+    }
+
+    .news-article {
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .news-article:last-child {
+      border-bottom: none;
+    }
+
+    .news-article h3 {
+      font-size: 18px;
+      margin: 0 0 8px 0;
+      color: #1a202c;
+    }
+
+    .news-article a {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .news-article a:hover {
+      text-decoration: underline;
+    }
+
+    .news-meta {
+      font-size: 12px;
+      color: #718096;
+      margin-bottom: 8px;
+    }
+
+    .news-description {
+      color: #4a5568;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .news-loading {
+      text-align: center;
+      padding: 40px;
+      color: #718096;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 20px 16px;
+      }
+
+      .container {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      table {
+        font-size: 14px;
+      }
+
+      th, td {
+        padding: 12px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Stock Watchlist</h1>
+  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+
+  <form id="stock-form">
+    <label for="symbol">Ticker symbol</label>
+    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
+    <button type="submit">Add to watchlist</button>
+  </form>
+
+  <div id="result"></div>
+
+  <table id="watchlist-table">
+    <thead>
+      <tr>
+        <th>Symbol</th>
+        <th>Email</th>
+        <th>Latest price</th>
+        <th>Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="watchlist-body"></tbody>
+  </table>
+
+  <!-- News Modal -->
+  <div id="news-modal" class="news-modal">
+    <div class="news-content">
+      <div class="news-header">
+        <h2 id="news-modal-title">News</h2>
+        <button class="close-btn" onclick="closeNewsModal()">&times;</button>
+      </div>
+      <div id="news-articles-container"></div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById("stock-form");
+    const resultEl = document.getElementById("result");
+    const watchlistBody = document.getElementById("watchlist-body");
+
+    async function loadWatchlist() {
+      try {
+        const resp = await fetch("/watchlist");
+        const data = await resp.json();
+        if (!resp.ok) {
+          resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
+          return;
+        }
+        watchlistBody.innerHTML = "";
+        data.forEach((row) => {
+          const tr = document.createElement("tr");
+          const price = row.latest_price !== null && row.latest_price !== undefined
+            ? Number(row.latest_price).toFixed(2)
+            : "-";
+          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
+          tr.innerHTML = `
+            <td>${row.symbol}</td>
+            <td>${row.email || "-"}</td>
+            <td>${price}</td>
+            <td>${updated}</td>
+            <td class="actions">
+              <button class="news-btn" data-symbol="${row.symbol}">News</button>
+              <button class="delete-btn" data-symbol="${row.symbol}">Delete</button>
+            </td>
+          `;
+          watchlistBody.appendChild(tr);
+        });
+      } catch (err) {
+        resultEl.textContent = "Failed to load watchlist: " + err;
+      }
+    }
+
+    // Handle button clicks using event delegation
+    watchlistBody.addEventListener("click", async (e) => {
+      // Handle news button
+      if (e.target.classList.contains("news-btn")) {
+        const symbol = e.target.getAttribute("data-symbol");
+        await fetchAndShowNews(symbol);
+        return;
+      }
+      
+      // Handle delete button
+      if (e.target.classList.contains("delete-btn")) {
+        const symbol = e.target.getAttribute("data-symbol");
+        if (!confirm(`Remove ${symbol} from watchlist?`)) {
+          return;
+        }
+        
+        resultEl.textContent = `Removing ${symbol}...`;
+        
+        try {
+          const resp = await fetch(`/watchlist/${symbol}`, {
+            method: "DELETE",
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            resultEl.textContent = "Error: " + (data.error || resp.statusText);
+            return;
+          }
+          resultEl.textContent = `Removed ${symbol} from watchlist`;
+          loadWatchlist();
+        } catch (err) {
+          resultEl.textContent = "Delete request failed: " + err;
+        }
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const symbol = document.getElementById("symbol").value;
+      resultEl.textContent = "Adding to watchlist...";
+
+      try {
+        const resp = await fetch("/watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          return;
+        }
+        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
+        document.getElementById("symbol").value = "";
+        loadWatchlist();
+      } catch (err) {
+        resultEl.textContent = "Request failed: " + err;
+      }
+    });
+
+    // News modal functions
+    async function fetchAndShowNews(symbol) {
+      const modal = document.getElementById("news-modal");
+      const title = document.getElementById("news-modal-title");
+      const container = document.getElementById("news-articles-container");
+      
+      // Show modal with loading state
+      modal.classList.add("show");
+      title.textContent = `News for ${symbol}`;
+      container.innerHTML = '<div class="news-loading">Fetching news...</div>';
+      
+      try {
+        // Fetch news from the API (this also stores it in the database)
+        const fetchResp = await fetch(`/watchlist/${symbol}/news`, {
+          method: "POST",
+        });
+        const fetchData = await fetchResp.json();
+        
+        if (!fetchResp.ok) {
+          container.innerHTML = `<div class="news-loading">Error: ${fetchData.error || fetchResp.statusText}</div>`;
+          return;
+        }
+        
+        // Now get the stored news from the database
+        const getResp = await fetch(`/watchlist/${symbol}/news`);
+        const getData = await getResp.json();
+        
+        if (!getResp.ok) {
+          container.innerHTML = `<div class="news-loading">Error loading news: ${getData.error || getResp.statusText}</div>`;
+          return;
+        }
+        
+        const articles = getData.articles || [];
+        
+        if (articles.length === 0) {
+          container.innerHTML = '<div class="news-loading">No news articles found for this ticker.</div>';
+          return;
+        }
+        
+        // Display articles
+        container.innerHTML = articles.map(article => `
+          <div class="news-article">
+            <h3>
+              <a href="${article.article_url || '#'}" target="_blank" rel="noopener noreferrer">
+                ${article.title || 'Untitled'}
+              </a>
+            </h3>
+            <div class="news-meta">
+              ${article.publisher_name || 'Unknown'} • 
+              ${article.published_utc ? new Date(article.published_utc).toLocaleDateString() : 'Unknown date'}
+              ${article.author ? ` • ${article.author}` : ''}
+            </div>
+            ${article.description ? `<div class="news-description">${article.description}</div>` : ''}
+          </div>
+        `).join('');
+        
+      } catch (err) {
+        container.innerHTML = `<div class="news-loading">Failed to fetch news: ${err}</div>`;
+      }
+    }
+    
+    function closeNewsModal() {
+      const modal = document.getElementById("news-modal");
+      modal.classList.remove("show");
+    }
+    
+    // Close modal when clicking outside the content
+    document.getElementById("news-modal").addEventListener("click", (e) => {
+      if (e.target.id === "news-modal") {
+        closeNewsModal();
+      }
+    });
+
+    loadWatchlist();
+  </script>
+</body>
+</html>
