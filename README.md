@@ -1,181 +1,141 @@
-# AI Stock Market Research Assistant
+# AI Stock Research Assistant
 
-An end-to-end system that ingests stock market news from Massive API, stores it in Databricks Lakebase (Postgres), generates vector embeddings for semantic search, and provides an AI agent interface for stock research and trading.
+**Market news ingestion, vector retrieval, and research tools in one Python project.**
+
+A DataExpert.io bootcamp project maintained by **Rina**, exploring how data engineering and AI applications can support stock research. It brings together market data, searchable news, watchlists, and research notes so a user can investigate a company without switching between separate tools.
+
+**Python · Databricks · Lakebase / PostgreSQL · pgvector · sentence-transformers · FastMCP · Flask**
+
+## What the project demonstrates
+
+| Capability | Implementation evidence |
+| --- | --- |
+| Market data ingestion | [Massive API client](src/ingestion/massive_client.py), [ingestion interface](app/ingestion_app.py), and [notebooks](notebooks/) |
+| News embeddings | [Embedding notebook export](src/embeddings/ingest_ticker_news_embeddings.py): article and chunk embeddings, batched encoding, duplicate-skipping inserts |
+| Vector retrieval | [MCP server](src/agent/alpaca_mcp_server.py): document and chunk retrieval using pgvector cosine distance |
+| Research tools | [MCP server](src/agent/alpaca_mcp_server.py): quotes, performance, fundamentals, comparisons, watchlists, and notes |
+| Conversational interface | [Flask application](app/app.py) and [intent handlers](app/agent.py) for research commands |
+| Persistent application data | [Dashboard schema and queries](app/db.py), plus [SQL schemas](sql/) for the news/MCP workflow |
+| Trading simulation | [Paper broker](src/agent/paper_broker.py) and staged trade / confirmation tools in the MCP server |
+
+The repository contains two related implementations. The Flask dashboard routes messages to Python handlers and optionally uses an LLM for summaries. The separate MCP server exposes tools to an MCP client. The dashboard is not documented here as a fully autonomous agent or as an MCP client.
 
 ## Architecture
 
-```
-Massive API  →  src/ingestion/  →  Lakebase (ticker_news_documents)
-                                       |
-                                 src/embeddings/  →  Lakebase (ticker_news_embeddings)
-                                       |
-                                 src/agent/  →  MCP Server (Alpaca + Massive + Paper Trading)
-                                       |
-                                 app/  →  Dashboard UI
-```
-
-## Project Structure
-
-```
-ai-stock-research-assistant/
-├── src/
-│   ├── ingestion/          # Massive API client, Lakebase connector, secrets setup
-│   ├── transformations/     # News processing and transformation pipeline
-│   ├── embeddings/         # Text → vector embedding pipeline (sentence-transformers)
-│   └── agent/              # MCP server with Alpaca/Massive/Paper brokers
-├── sql/
-│   ├── schema.sql          # Combined schema (all tables + indexes)
-│   ├── 01_setup_news_table.sql
-│   ├── 02_setup_embeddings_table.sql
-│   ├── 03_setup_chunk_embeddings_table.sql
-│   └── schema_watchlist.sql
-├── app/                    # Databricks Apps (dashboard, ingestion, MCP server)
-├── tests/                  # Test suite
-├── docs/                   # Documentation for each component
-├── requirements.txt
-├── .env.example
-└── README.md
+```mermaid
+flowchart TD
+    A["Massive API"] --> B["News ingestion"]
+    B --> C["Lakebase news tables"]
+    C --> D["MiniLM embedding pipeline"]
+    D --> E["pgvector document and chunk indexes"]
+    E --> F["MCP research tools"]
+    G["Market data and broker APIs"] --> F
+    G --> H["Flask research dashboard"]
+    H --> I["Dashboard tables and optional LLM summaries"]
 ```
 
-## Components
+### Two retrieval paths
 
-### 1. Ingestion (`src/ingestion/`)
+| Path | Embeddings and storage | Retrieval |
+| --- | --- | --- |
+| News pipeline + MCP | Default MiniLM model, 384-dimensional vectors in PostgreSQL pgvector columns | Database cosine-distance queries; HNSW indexes defined in SQL |
+| Flask dashboard | Databricks embedding endpoint; vectors serialized into text columns | Cosine similarity calculated in Python |
 
-Fetches stock news from Massive API and stores in Lakebase.
+The dashboard also includes a deterministic hash-vector fallback when its embedding endpoint is unavailable. Those fallback vectors are not a substitute for semantic embeddings, so fallback results should not be used to evaluate semantic retrieval quality.
 
-* `massive_client.py` — Massive API client (news articles, ticker data)
-* `lakebase.py` — Postgres connection helper via psycopg2
-* `setup_secrets.py` — Stores API keys as Databricks secrets
+## Engineering choices visible in the code
 
-### 2. Embeddings (`src/embeddings/`)
+- **Document and chunk retrieval:** the news pipeline embeds titles/descriptions and overlapping article-content chunks. Defaults are 800 characters per chunk with 100 characters of overlap.
+- **Repeatable inserts:** news and embedding inserts use stable IDs with `ON CONFLICT DO NOTHING` to skip existing records. This handles repeat ingestion; it does not refresh an existing record when its content changes.
+- **Model metadata:** embedding tables record the model name and embedding timestamp. Changing models also requires checking vector dimensions and rebuilding compatible embeddings/indexes.
+- **SQL-backed retrieval:** the MCP path keeps vectors in PostgreSQL and uses pgvector rather than introducing a separate vector database.
+- **Separate entry points:** ingestion, notebook processing, dashboard requests, and MCP tools have different runtime requirements. Choose a workflow before configuring the environment.
 
-Generates vector embeddings for news articles using sentence-transformers.
+## Repository guide
 
-* `ingest_ticker_news_embeddings.py` — Pipeline: reads unembedded docs, chunks text, generates embeddings, writes to Lakebase via psycopg2
+| Location | Purpose |
+| --- | --- |
+| [src/ingestion/](src/ingestion/) | API client, database connection helper, and secret setup |
+| [src/transformations/](src/transformations/) | Transformation application and supporting clients |
+| [src/embeddings/](src/embeddings/) | Databricks notebook export for news and chunk embeddings |
+| [src/agent/](src/agent/) | FastMCP server, market data adapters, and broker modules |
+| [app/](app/) | Flask dashboard, intent handlers, database queries, and deployment configurations |
+| [notebooks/](notebooks/) | Databricks workflow notebooks exported as Python |
+| [sql/](sql/) | News/vector, watchlist, and research-note schemas |
+| [tests/test_watchlist.py](tests/test_watchlist.py) | External-service integration demonstration |
+| [docs/](docs/) | Earlier implementation and deployment walkthroughs |
 
-Model: `sentence-transformers/all-MiniLM-L6-v2` (384-dim)
+## Setup and runtime requirements
 
-### 3. Agent (`src/agent/`)
+This is a Databricks-oriented project. A clean-machine, end-to-end setup has not been verified in this documentation update.
 
-MCP (Model Context Protocol) server for stock research and trading.
+### 1. Prepare the environment
 
-* `alpaca_mcp_server.py` — Main MCP server entry point
-* `alpaca_broker.py` — Alpaca trading API integration
-* `massive_broker.py` — Massive news data integration
-* `paper_broker.py` — Paper trading simulation
+Use a Databricks workspace, a Lakebase/PostgreSQL database, and credentials for the data services needed by your chosen workflow. The news/MCP workflow requires pgvector. LLM summaries and dashboard embeddings require access to the configured Databricks model endpoints.
 
-### 4. Dashboard (`app/`)
-
-Flask web UI for viewing stock data and managing watchlists.
-
-* `dashboard.py` — Main dashboard app
-* `ingestion_app.py` — Data ingestion interface
-* `alpaca_broker.py` / `paper_broker.py` — Broker integrations
-
-## Database Schema
-
-### `ticker_news_documents`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT PK | Article ID |
-| `ticker` | TEXT | Stock ticker symbol |
-| `title` | TEXT | Article title |
-| `description` | TEXT | Article summary |
-| `author` | TEXT | Author name |
-| `article_url` | TEXT | Source URL |
-| `publisher_name` | TEXT | Publisher |
-| `keywords` | JSONB | Extracted keywords |
-| `sentiment` | TEXT | Sentiment label |
-| `sentiment_reasoning` | TEXT | Sentiment explanation |
-| `published_utc` | TIMESTAMPTZ | Publication time |
-| `payload` | JSONB | Full API response |
-| `synced_at` | TIMESTAMPTZ | Ingestion time |
-
-### `ticker_news_embeddings`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT PK | Article ID |
-| `ticker` | TEXT | Stock ticker |
-| `title` | TEXT | Article title |
-| `published_utc` | TIMESTAMPTZ | Publication time |
-| `embedding` | vector(384) | MiniLM embedding |
-| `model_name` | TEXT | Model identifier |
-| `embedded_at` | TIMESTAMPTZ | Embedding time |
-
-HNSW index on `embedding` using `vector_cosine_ops`.
-
-### `ticker_news_chunk_embeddings`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT PK | Chunk ID |
-| `article_id` | TEXT | References article |
-| `ticker` | TEXT | Stock ticker |
-| `chunk_index` | INT | Chunk position |
-| `chunk_text` | TEXT | Text chunk |
-| `embedding` | vector(384) | MiniLM embedding |
-| `model_name` | TEXT | Model identifier |
-| `embedded_at` | TIMESTAMPTZ | Embedding time |
-
-### `watchlist`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | SERIAL PK | Auto-increment |
-| `email` | VARCHAR(255) | User email |
-| `symbol` | VARCHAR(10) | Stock symbol |
-| `latest_price` | DECIMAL(12,2) | Latest price |
-| `updated_at` | TIMESTAMP | Last update |
-
-## Setup
-
-### 1. Lakebase
-
-Create a Lakebase instance in Databricks with native (password) authentication. Store the connection URL as a secret:
-
-```python
-from databricks.sdk import WorkspaceClient
-import base64
-
-w = WorkspaceClient()
-w.secrets.create_scope(scope="database")
-lakebase_url = "postgresql://role:password@host:5432/databricks_postgres?sslmode=require"
-w.secrets.put_secret(scope="database", key="lakebase-url", string_value=base64.b64encode(lakebase_url.encode()).decode())
+```bash
+git clone https://github.com/Rina033/ai-stock-research-assistant.git
+cd ai-stock-research-assistant
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 2. API Keys
+The root requirements provide the core packages. Notebook and model-serving dependencies must also be available in the selected Databricks runtime; this is not a verified dependency lockfile.
 
-Store Massive and Alpaca API keys as Databricks secrets. See `.env.example` for required variables.
+### 2. Configure credentials
 
-### 3. Database Schema
+Review [.env.example](.env.example), [secret setup](src/ingestion/setup_secrets.py), and the connection helper for the workflow you run.
 
-Run `sql/schema.sql` against your Lakebase Postgres database to create all tables and indexes.
+The source helpers use Databricks secret scopes such as `database/lakebase-url` and `massive/api-key`. Scope/key names can be configured through environment variables. The example API hostname in `.env.example` is a placeholder; use the actual API base URL configured for your service.
 
-### 4. Deploy
+Keep credentials outside Git. A local `.env` file alone does not replace Databricks authentication and secret-scope access.
 
-Deploy the apps from `app/` directory using Databricks Apps.
+### 3. Prepare the relevant schema
 
-## Tech Stack
+For news/vector retrieval, review and apply [sql/schema.sql](sql/schema.sql). Research-note and visit-tracking tools additionally use [sql/05_setup_research_notes.sql](sql/05_setup_research_notes.sql).
 
-* **Databricks Lakebase** — Postgres with pgvector
-* **Massive API** — Stock news data source
-* **Alpaca API** — Trading (paper and live)
-* **sentence-transformers** — Embedding model (all-MiniLM-L6-v2, 384-dim)
-* **FastMCP** — Model Context Protocol server
-* **Flask** — Web dashboard
-* **psycopg2** — Postgres driver (all DB operations, no Spark JDBC)
+The dashboard defines a separate schema in [app/db.py](app/db.py). These schemas are not interchangeable. Check the queries used by your chosen entry point before applying SQL.
 
-## Documentation
+### 4. Select an entry point
 
-Detailed docs in `docs/`:
-* `day-1-ingestion.md` — Ingestion pipeline setup
-* `day-2-embeddings.md` — Embedding pipeline and vector search
-* `day-3-dashboard.md` — Dashboard and MCP server
+| Workflow | Entry point | Runtime note |
+| --- | --- | --- |
+| News ingestion | [app/ingestion_app.py](app/ingestion_app.py) | Flask application; requires API and database access |
+| Embedding generation | [src/embeddings/ingest_ticker_news_embeddings.py](src/embeddings/ingest_ticker_news_embeddings.py) | Import/run as a Databricks notebook; uses `dbutils.widgets` and notebook display functions |
+| Research dashboard | [app/app.py](app/app.py) | [app/app.yaml](app/app.yaml) launches `python app.py` from the app source directory |
+| MCP tool server | [src/agent/alpaca_mcp_server.py](src/agent/alpaca_mcp_server.py) | Requires its sibling broker modules, database configuration, and an MCP client |
 
-## Notes
+The MCP deployment configuration in [app/mcp_app.yaml](app/mcp_app.yaml) references `alpaca_mcp_server.py`, which lives in `src/agent/`. Assemble the deployment source directory accordingly; deploying `app/` alone will not provide that entry point.
 
-* All database writes use psycopg2 directly — no Spark JDBC
-* pgvector extension required for vector similarity search
-* Alpaca supports both paper and live trading (configure in secrets)
+### Example research commands
+
+These illustrate the intended dashboard workflow; successful responses depend on configured services and available data.
+
+- `Add AAPL to my watchlist`
+- `Show my watchlist`
+- `Compare AAPL and MSFT`
+- `Show news for AAPL`
+- `What changed since last visit?`
+
+## Validation and current limitations
+
+- **Testing:** [test_watchlist.py](tests/test_watchlist.py) is an integration demonstration that calls external services and writes watchlist data. Its import paths and expected watchlist columns need alignment with the chosen runtime/schema. It is not evidence of a passing automated test suite.
+- **Deployment:** this repository contains deployment configurations, but no live demo availability is asserted here.
+- **Retrieval quality:** no measured relevance benchmark, latency result, or production-scale throughput is published here.
+- **User isolation:** some MCP functions have demo email defaults, while the dashboard supports a default user. Review identity handling before multi-user deployment.
+- **Configuration consistency:** the dashboard and MCP paths have different schemas and embedding approaches. Model dimensions, table names, and source packaging require verification.
+- **Project attribution:** this project was developed in a bootcamp context. The exact boundary between course-provided scaffolding and independently implemented extensions still needs a documented contribution breakdown.
+
+## Further reading
+
+- [Ingestion walkthrough](docs/day-1-ingestion.md)
+- [Embedding walkthrough](docs/day-2-embeddings.md)
+- [Dashboard and MCP walkthrough](docs/day-3-dashboard.md)
+- [SQL guide](docs/sql-readme.md)
+
+These walkthroughs capture earlier development steps. Cross-check commands and paths against the current repository and the runtime notes above.
+
+## License
+
+See [LICENSE](LICENSE).
