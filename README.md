@@ -2,7 +2,7 @@
 
 **Market news ingestion, vector retrieval, and research tools in one Python project.**
 
-A DataExpert.io bootcamp project maintained by **Rina**, exploring how data engineering and AI applications can support stock research. It brings together market data, searchable news, watchlists, and research notes so a user can investigate a company without switching between separate tools.
+A project independently implemented by **Rina** as part of the DataExpert.io bootcamp, exploring how data engineering and AI applications can support stock research. It brings together market data, searchable news, watchlists, and research notes so a user can investigate a company without switching between separate tools.
 
 **Python · Databricks · Lakebase / PostgreSQL · pgvector · sentence-transformers · FastMCP · Flask**
 
@@ -125,7 +125,7 @@ These illustrate the intended dashboard workflow; successful responses depend on
 - **Retrieval quality:** no measured relevance benchmark, latency result, or production-scale throughput is published here.
 - **User isolation:** some MCP functions have demo email defaults, while the dashboard supports a default user. Review identity handling before multi-user deployment.
 - **Configuration consistency:** the dashboard and MCP paths have different schemas and embedding approaches. Model dimensions, table names, and source packaging require verification.
-- **Project attribution:** this project was developed in a bootcamp context. The exact boundary between course-provided scaffolding and independently implemented extensions still needs a documented contribution breakdown.
+- **Project ownership:** Rina independently implemented the full project, including data ingestion, transformations, embedding generation, retrieval, MCP tools, the dashboard, database schemas, and deployment configuration.
 
 ## Further reading
 
